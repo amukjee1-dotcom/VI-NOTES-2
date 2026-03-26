@@ -1,77 +1,166 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import jsPDF from "jspdf";
+
+import {
+  Chart as ChartJS,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement
+} from "chart.js";
+
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement);
 
 function App() {
   const [text, setText] = useState("");
-  const [keystrokes, setKeystrokes] = useState<number[]>([]);
+  const [keystrokes, setKeystrokes] = useState<any[]>([]);
   const [pasteCount, setPasteCount] = useState(0);
   const [pauses, setPauses] = useState(0);
 
+  // 🔥 Step 1
+  const [focusLostCount, setFocusLostCount] = useState(0);
+  const [idleTime, setIdleTime] = useState(0);
+  const [warning, setWarning] = useState("");
+
+  // 🔥 Step 2
+  const [backspaceCount, setBackspaceCount] = useState(0);
+  const [hesitationCount, setHesitationCount] = useState(0);
+  const [burstCount, setBurstCount] = useState(0);
+
   const lastTime = useRef<number>(Date.now());
 
-  // 🔹 Handle typing
-  const handleKeyDown = () => {
-    const now = Date.now();
-    const diff = now - lastTime.current;
+  // 🔹 Focus detection
+  useEffect(() => {
+    if ((window as any).electronAPI) {
+      (window as any).electronAPI.onFocusLost(() => {
+        setFocusLostCount((prev) => prev + 1);
+        setWarning("⚠️ Window switched!");
+      });
 
-    if (diff > 2000) {
-      setPauses((prev) => prev + 1);
+      (window as any).electronAPI.onFocusGained(() => {
+        setWarning("");
+      });
+    }
+  }, []);
+
+  // 🔹 Idle detection
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = Date.now() - lastTime.current;
+
+      if (diff > 3000) {
+        setIdleTime((prev) => prev + 1);
+        setWarning("⚠️ Idle detected!");
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🔹 Key tracking
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    let diff;
+
+    if ((window as any).electronAPI) {
+      diff = (window as any).electronAPI.captureKey();
+    } else {
+      const now = Date.now();
+      diff = now - lastTime.current;
+      lastTime.current = now;
     }
 
-    setKeystrokes((prev) => [...prev, diff]);
-    lastTime.current = now;
+    if (diff > 2000) setPauses((p) => p + 1);
+
+    // 🔥 Hesitation
+    if (diff > 1500 && (text.endsWith(".") || text.length === 0)) {
+      setHesitationCount((h) => h + 1);
+    }
+
+    // 🔥 Burst
+    if (diff < 100) {
+      setBurstCount((b) => b + 1);
+    }
+
+    // 🔥 Backspace
+    if (e.key === "Backspace") {
+      setBackspaceCount((b) => b + 1);
+    }
+
+    const type =
+      e.key === "Backspace"
+        ? "delete"
+        : e.key.length === 1
+        ? "char"
+        : "other";
+
+    setKeystrokes((prev) => [...prev, { time: diff, type }]);
   };
 
-  // 🔹 Detect paste
-  const handlePaste = () => {
-    setPasteCount((prev) => prev + 1);
-  };
+  const handlePaste = () => setPasteCount((p) => p + 1);
 
-  // 🔹 Calculate speed
   const calculateSpeed = () => {
-    if (keystrokes.length === 0) return 0;
-
-    const totalTime = keystrokes.reduce((a, b) => a + b, 0);
-    const seconds = totalTime / 1000;
-
-    if (seconds === 0) return 0;
-
-    return Number((text.length / seconds).toFixed(2));
+    if (!keystrokes.length) return 0;
+    const total = keystrokes.reduce((s, k) => s + k.time, 0);
+    return Number((text.length / (total / 1000)).toFixed(2));
   };
 
-  // 🔥 NEW: Advanced Report Logic
+  // 🔥 REPORT
   const getReport = () => {
     let score = 100;
     let flags: string[] = [];
 
-    // Paste check
     if (pasteCount > 2) {
       score -= 30;
-      flags.push("Too many paste actions");
+      flags.push("Too many pastes");
     }
 
-    // Pause check
     if (pauses < 2) {
       score -= 20;
-      flags.push("Very few pauses (too smooth)");
+      flags.push("Too smooth typing");
     }
 
-    // Typing variation
+    const times = keystrokes.map((k) => k.time);
     const variation =
-      keystrokes.length > 0
-        ? Math.max(...keystrokes) - Math.min(...keystrokes)
-        : 0;
+      times.length > 0 ? Math.max(...times) - Math.min(...times) : 0;
 
     if (variation < 50) {
       score -= 20;
-      flags.push("Constant typing speed (non-human)");
+      flags.push("Constant typing speed");
     }
 
-    // Speed check
-    const speed = calculateSpeed();
-    if (speed > 15) {
+    if (calculateSpeed() > 15) {
       score -= 20;
-      flags.push("Unusually high typing speed");
+      flags.push("Too fast typing");
+    }
+
+    // 🔥 Step 1
+    if (focusLostCount > 2) {
+      score -= 20;
+      flags.push("Window switching detected");
+    }
+
+    if (idleTime > 3) {
+      score -= 15;
+      flags.push("High idle time");
+    }
+
+    // 🔥 Step 2
+    if (backspaceCount < 2) {
+      score -= 15;
+      flags.push("No corrections");
+    }
+
+    if (hesitationCount < 1) {
+      score -= 10;
+      flags.push("No hesitation");
+    }
+
+    if (burstCount > keystrokes.length * 0.7) {
+      score -= 15;
+      flags.push("Too continuous typing");
     }
 
     let label = "✅ Human";
@@ -83,31 +172,52 @@ function App() {
 
   const report = getReport();
 
-  // 🔹 Save session
-  const saveSession = async () => {
-    try {
-      const data = {
-        content: text,
-        keystrokes,
-        pasteEvents: pasteCount,
-        avgSpeed: calculateSpeed(),
-        pauses,
-        score: report.score,
-        flags: report.flags,
-        label: report.label,
-      };
+  // 📊 Graph
+  const graphData = {
+    labels: keystrokes.map((_, i) => i + 1),
+    datasets: [
+      {
+        label: "Keystroke Timing",
+        data: keystrokes.map((k) => k.time),
+        borderColor: "blue",
+      },
+    ],
+  };
 
-      await axios.post("http://localhost:5000/save", data);
-      alert("Session Saved with Report!");
-    } catch (error) {
-      console.error(error);
-      alert("Error saving session");
-    }
+  // 📄 PDF
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    doc.text("Vi-Notes Report", 20, 20);
+    doc.text(`Score: ${report.score}`, 20, 40);
+    doc.text(`Status: ${report.label}`, 20, 50);
+    doc.text(`Focus Lost: ${focusLostCount}`, 20, 60);
+    doc.text(`Idle: ${idleTime}`, 20, 70);
+    doc.save("report.pdf");
+  };
+
+  const saveSession = async () => {
+    await axios.post("http://localhost:5000/save", {
+      content: text,
+      keystrokes,
+      pasteEvents: pasteCount,
+      avgSpeed: calculateSpeed(),
+      pauses,
+      score: report.score,
+      flags: report.flags,
+      label: report.label,
+      focusLost: focusLostCount,
+      idleEvents: idleTime,
+      backspaces: backspaceCount,
+      hesitations: hesitationCount,
+      bursts: burstCount
+    });
+
+    alert("Saved!");
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial", textAlign: "center" }}>
-      <h1>Vi-Notes ✍️</h1>
+    <div style={{ padding: 20 }}>
+      <h1>Vi-Notes</h1>
 
       <textarea
         rows={15}
@@ -116,43 +226,27 @@ function App() {
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        placeholder="Start writing..."
-        style={{ padding: "10px", fontSize: "16px" }}
       />
 
-      <div style={{ marginTop: "15px" }}>
-        <p><b>Keystrokes:</b> {keystrokes.length}</p>
-        <p><b>Paste Count:</b> {pasteCount}</p>
-        <p><b>Pauses:</b> {pauses}</p>
-        <p><b>Speed:</b> {calculateSpeed()} chars/sec</p>
+      <p>Score: {report.score}</p>
+      <p>{report.label}</p>
 
-        <hr />
+      <p>Focus Lost: {focusLostCount}</p>
+      <p>Idle: {idleTime}</p>
+      <p>Backspace: {backspaceCount}</p>
+      <p>Hesitation: {hesitationCount}</p>
+      <p>Burst: {burstCount}</p>
 
-        <h3>Authenticity Report</h3>
-        <p><b>Score:</b> {report.score}/100</p>
-        <p><b>Status:</b> {report.label}</p>
+      {warning && <p style={{ color: "red" }}>{warning}</p>}
 
-        <p><b>Flags:</b></p>
-        <ul>
-          {report.flags.length === 0 ? (
-            <li>No suspicious activity</li>
-          ) : (
-            report.flags.map((f, i) => <li key={i}>{f}</li>)
-          )}
-        </ul>
-      </div>
+      <ul>
+        {report.flags.map((f, i) => <li key={i}>{f}</li>)}
+      </ul>
 
-      <button
-        onClick={saveSession}
-        style={{
-          marginTop: "10px",
-          padding: "10px 20px",
-          fontSize: "16px",
-          cursor: "pointer",
-        }}
-      >
-        Save Session
-      </button>
+      <Line data={graphData} />
+
+      <button onClick={saveSession}>Save</button>
+      <button onClick={downloadPDF}>Download PDF</button>
     </div>
   );
 }

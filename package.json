@@ -1,0 +1,29 @@
+{
+  "name": "vi-notes-2",
+  "version": "1.0.0",
+  "description": "Vi-Notes is a writing authenticity verification system that detects whether content is written by a human or AI using behavioral analysis.",
+  "main": "electron/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\" \"npm run electron\"",
+    "client": "cd client && npm run dev",
+    "server": "cd server && node index.js",
+    "electron": "wait-on http://localhost:5173 && electron ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amukjee1-dotcom/VI-NOTES-2.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/amukjee1-dotcom/VI-NOTES-2/issues"
+  },
+  "homepage": "https://github.com/amukjee1-dotcom/VI-NOTES-2#readme",
+  "dependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^41.0.4",
+    "wait-on": "^9.0.4"
+  }
+}
