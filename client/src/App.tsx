@@ -167,7 +167,7 @@ function App() {
   doc.line(20, 25, 190, 25);
 
   // =========================
-  //  Typed Content (NEW ✅)
+  //  Typed Content
   // =========================
   doc.setFontSize(16);
   doc.text("Typed Content:", 20, 40);
@@ -246,7 +246,7 @@ function App() {
   doc.save("Vi-Notes-Report.pdf");
 };
   const saveSession = async () => {
-    await axios.post("http://localhost:5000/save", {
+    await axios.post("https://vi-notes-backend-qldz.onrender.com/save", {
       content: text,
       keystrokes,
       score: report.score,
