@@ -5,10 +5,11 @@
   "main": "electron/main.js",
   "type": "commonjs",
   "scripts": {
-    "start": "concurrently \"npm run server\" \"npm run client\" \"npm run electron\"",
     "client": "cd client && npm run dev",
     "server": "cd server && node index.js",
-    "electron": "wait-on http://localhost:5176 && electron ."
+    "electron": "electron electron/main.js",
+    "start": "concurrently \"npm run client\" \"npm run server\"",
+    "desktop": "concurrently \"npm run client\" \"npm run server\" \"npm run electron\""
   },
   "repository": {
     "type": "git",

@@ -4,35 +4,18 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    width: 1000,
+    height: 700,
   });
 
-  // Load your React app (Vite)
-  mainWindow.loadURL("http://localhost:5176");
+  // ✅ must match vite port
+  mainWindow.loadURL("http://localhost:5173");
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
+  mainWindow.webContents.openDevTools();
 }
 
-// App ready
 app.whenReady().then(createWindow);
 
-// Close app when all windows closed
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-// Re-open app (Mac)
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+  if (process.platform !== "darwin") app.quit();
 });
