@@ -6,12 +6,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 MongoDB
-mongoose.connect("YOUR_MONGODB_URL")
+mongoose.connect("mongodb://anushka:123anus@ac-ccihaw4-shard-00-00.vmgp6ex.mongodb.net:27017,ac-ccihaw4-shard-00-01.vmgp6ex.mongodb.net:27017,ac-ccihaw4-shard-00-02.vmgp6ex.mongodb.net:27017/?ssl=true&replicaSet=atlas-ezqhld-shard-0&authSource=admin&appName=Cluster0")
   .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log(err));
+  .catch(err => console.log(err));
 
-// 🔹 Schema
 const SessionSchema = new mongoose.Schema({
   content: String,
   keystrokes: Array,
@@ -26,12 +24,14 @@ const SessionSchema = new mongoose.Schema({
   backspaces: Number,
   hesitations: Number,
   bursts: Number,
+  sentenceVar: Number,
+  vocabScore: Number,
+  repetition: Number,
   createdAt: { type: Date, default: Date.now }
 });
 
 const Session = mongoose.model("Session", SessionSchema);
 
-// 🔹 Routes
 app.post("/save", async (req, res) => {
   try {
     const session = new Session(req.body);

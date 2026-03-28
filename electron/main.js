@@ -1,28 +1,38 @@
 const { app, BrowserWindow } = require("electron");
-const path = require("path");
 
-let win;
+let mainWindow;
 
 function createWindow() {
-  win = new BrowserWindow({
-    width: 1000,
-    height: 700,
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
-  win.loadURL("http://localhost:5173");
+  // Load your React app (Vite)
+  mainWindow.loadURL("http://localhost:5176");
 
-  // Detect focus loss (user switches app)
-  win.on("blur", () => {
-    win.webContents.send("focus-lost");
-  });
-
-  win.on("focus", () => {
-    win.webContents.send("focus-gained");
+  mainWindow.on("closed", () => {
+    mainWindow = null;
   });
 }
 
+// App ready
 app.whenReady().then(createWindow);
+
+// Close app when all windows closed
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+// Re-open app (Mac)
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
